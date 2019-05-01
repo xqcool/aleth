@@ -16,7 +16,9 @@
 #include <test/tools/jsontests/TransactionTests.h>
 #include <test/tools/jsontests/vm.h>
 #include <test/tools/libtesteth/TestHelper.h>
+#include <test/tools/libtesteth/cmakeAllTests.h>
 #include <boost/test/included/unit_test.hpp>
+#include <boost/tokenizer.hpp>
 #include <clocale>
 #include <cstdlib>
 #include <iostream>
@@ -81,6 +83,17 @@ int main(int argc, const char* argv[])
     std::string const dynamicTestSuiteName = "customTestSuite";
     setDefaultOrCLocale();
 
+    string sMinusTArg;
+    for (int i = 0; i < argc; i++)  // find -t boost arg
+    {
+        std::string const arg = std::string{argv[i]};
+        if (arg == "-t" && i + 1 < argc)
+        {
+            sMinusTArg = std::string{argv[i + 1]};
+            break;
+        }
+    }
+
     // Initialize options
     try
     {
@@ -137,6 +150,34 @@ int main(int argc, const char* argv[])
     int result = 0;
     auto fakeInit = [](int, char* []) -> boost::unit_test::test_suite* { return nullptr; };
     result = unit_test_main(fakeInit, argc, const_cast<char**>(argv));
+
+    // Print suggestions of a test case
+    if (result == boost::exit_exception_failure)  // test suite not found
+    {
+        size_t allTestsElementIndex = 0;
+        typedef std::pair<size_t, size_t> NameDistance;  // <index in availableTests, compared
+                                                         // distance>
+
+        // Use `vector` here because `set` does not work with sort
+        std::vector<NameDistance> distanceMap;  // <test name, compared distance>
+        for (auto& it : c_allTests)
+        {
+            int dist =
+                test::levenshteinDistance(sMinusTArg.c_str(), sMinusTArg.size(), it, strlen(it));
+            distanceMap.emplace_back(allTestsElementIndex++, dist);
+        }
+        std::sort(distanceMap.begin(), distanceMap.end(),
+            [](NameDistance const& _a, NameDistance const& _b) { return _a.second < _b.second; });
+        std::cerr << "Did you mean: \n";
+        std::set<string> suggestionSet;
+        for (size_t i = 0; i < 3 && i < distanceMap.size(); i++)
+        {
+            string name = c_allTests[distanceMap[i].first];
+            suggestionSet.emplace(name);
+        }
+        for (auto const& suggestion : suggestionSet)
+            std::cerr << "-t " << suggestion << "\n";
+    }
     dev::test::TestOutputHelper::get().printTestExecStats();
     return result;
 }
