@@ -237,7 +237,12 @@ void BlockChainSync::syncPeer(NodeID const& _peerID, bool _force)
     }
 
     if (m_state == SyncState::Waiting)
+    {
+        LOG(m_loggerDetail) << "Can't sync with peer " << _peerID
+                            << " - sync has been paused (m_state = " << m_state << ")";
+        LOG(m_loggerDetail) << "Block queue status: " << host().bq().status();
         return;
+    }
 
     u256 td = host().chain().details().totalDifficulty;
     if (host().bq().isActive())
@@ -284,7 +289,9 @@ void BlockChainSync::requestBlocks(NodeID const& _peerID)
     clearPeerDownload(_peerID);
     if (host().bq().knownFull())
     {
-        LOG(m_loggerDetail) << "Waiting for block queue before downloading blocks";
+        LOG(m_loggerDetail)
+            << "Waiting for block queue before downloading blocks. Block queue status: "
+            << host().bq().status();
         pauseSync();
         return;
     }
